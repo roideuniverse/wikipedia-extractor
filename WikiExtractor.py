@@ -116,9 +116,9 @@ version = '2.5'
 
 ##### Main function ###########################################################
 
-def WikiDocument(out, id, title, text):
+def WikiDocument(out, id, title,timestamp, text):
     url = get_url(id, prefix)
-    header = '<doc id="%s" url="%s" title="%s">\n' % (id, url, title)
+    header = '<doc id="%s" url="%s" title="%s" timestamp="%s">\n' % (id, url, title, timestamp)
     # Separate header from text with a newline.
     header += title + '\n'
     header = header.encode('utf-8')
@@ -422,7 +422,7 @@ def clean(text):
             text = text.replace(match.group(), '%s_%d' % (placeholder, index))
             index += 1
 
-    text = text.replace('<<', u'Â«').replace('>>', u'Â»')
+    text = text.replace('<<', u'«').replace('>>', u'»')
 
     #############################################
 
@@ -434,8 +434,8 @@ def clean(text):
     text = text.replace('\t', ' ')
     text = spaces.sub(' ', text)
     text = dots.sub('...', text)
-    text = re.sub(u' (,:\.\)\]Â»)', r'\1', text)
-    text = re.sub(u'(\[\(Â«) ', r'\1', text)
+    text = re.sub(u' (,:\.\)\]»)', r'\1', text)
+    text = re.sub(u'(\[\(«) ', r'\1', text)
     text = re.sub(r'\n\W+?\n', '\n', text) # lines with only punctuations
     text = text.replace(',,', ',').replace(',.', '.')
     return text
@@ -516,17 +516,20 @@ class OutputSplitter:
         self.max_file_size = max_file_size
         self.path_name = path_name
         self.out_file = self.open_next_file()
+        self.write('<wikinews>\n')
 
     def reserve(self, size):
         cur_file_size = self.out_file.tell()
         if cur_file_size + size > self.max_file_size:
             self.close()
             self.out_file = self.open_next_file()
+            self.write('<wikinews>\n')
 
     def write(self, text):
         self.out_file.write(text)
 
     def close(self):
+	self.write('\n</wikinews>')
         self.out_file.close()
 
     def open_next_file(self):
@@ -564,16 +567,24 @@ def process_data(input, output):
     redirect = False
     for line in input:
         line = line.decode('utf-8')
+        line = line.replace('&', '!$$!!$$!' )
+        if '&' in line:
+		print 'sorry'
+		sys.exit(0)
+		
         tag = ''
         if '<' in line:
             m = tagRE.search(line)
             if m:
                 tag = m.group(2)
         if tag == 'page':
+	    timestamp = ''
             page = []
             redirect = False
         elif tag == 'id' and not id:
             id = m.group(3)
+        elif tag == 'timestamp':
+	    timestamp = line[m.start(3):m.end(3)]
         elif tag == 'title':
             title = m.group(3)
         elif tag == 'redirect':
@@ -596,7 +607,7 @@ def process_data(input, output):
                     not redirect:
                 print id, title.encode('utf-8')
                 sys.stdout.flush()
-                WikiDocument(output, id, title, ''.join(page))
+                WikiDocument(output, id, title, timestamp, ''.join(page))
             id = None
             page = []
         elif tag == 'base':
@@ -604,6 +615,7 @@ def process_data(input, output):
             # /mediawiki/siteinfo/base
             base = m.group(3)
             prefix = base[:base.rfind("/")]
+	
 
 ### CL INTERFACE ############################################################
 
